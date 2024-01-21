@@ -1,31 +1,14 @@
-import { Ai } from "@cloudflare/ai";
-import { Hono } from "hono";
-import { fetch } from 'node-fetch';
-import { forge } from 'node-forge';
-
-
+import fetch from 'node-fetch';
+import forge from 'node-forge';
+import 'dotenv/config';
 
 // Load sensitive information from environment variables
-// const publicKeyString = PUBLIC_KEY;
-// const hexEncodedEntitySecret = ENTITY_SECRET;
-// const apiKey = API_KEY;
+const publicKeyString = process.env.PUBLIC_KEY;
+const hexEncodedEntitySecret = process.env.ENTITY_SECRET;
+const apiKey = process.env.API_KEY;
 
-
-import imageTemplate from "./image-template.html";
-
-
-const app = new Hono();
-
-
-app.get("/c", (c) => c.html(imageTemplate));
-
-
-
-
-
-// Your existing functions for generating UUID and entity secret ciphertext
+// Your generateSecureUUID function
 async function generateSecureUUID() {
-  // ... (same as before)
   // Generate an array of 16 random bytes using the crypto API
   const randomBytes = new Uint8Array(16);
   crypto.getRandomValues(randomBytes);
@@ -44,6 +27,7 @@ async function generateSecureUUID() {
   return formattedUUID
 }
 
+// Your generateEntitySecretCiphertext function
 async function generateEntitySecretCiphertext() {
   // ... (same as before)
   const entitySecret = forge.util.hexToBytes(hexEncodedEntitySecret);
@@ -67,10 +51,8 @@ async function generateEntitySecretCiphertext() {
     return base64EncryptedData
 }
 
-
-
-// New route for API call to Circle
-app.get("/perform-transfer", async (c) => {
+// Main function that orchestrates the process
+async function main() {
   try {
     // Generate secure UUID (idempotency key)
     const idempotencyKey = await generateSecureUUID();
@@ -84,7 +66,7 @@ app.get("/perform-transfer", async (c) => {
       method: 'POST',
       headers: {
         accept: 'application/json',
-        authorization: `Bearer ${API_KEY}`,
+        authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
         amounts: ['0.01'],
@@ -100,47 +82,11 @@ app.get("/perform-transfer", async (c) => {
     // Make the API call
     const response = await fetch(url, options);
     const json = await response.json();
-    return c.json(json);
+    console.log(json);
   } catch (error) {
     console.error('Error:', error);
-    return c.text('Error in Circle API call');
   }
-});
-
-// New route for AI image generation
-app.get("/generate-image", async (c) => {
-  const ai = new Ai(c.env.AI);
-
-  // Retrieve the prompt from the query parameters
-  const prompt = c.req.query("prompt") || 'cyberpunk cat';
-
-  // Customize the prompt for image generation
-  const inputs = {
-    prompt,
-  };
-
-   try{
-  // Run AI to generate an image
-  const response = await ai.run(
-    '@cf/stabilityai/stable-diffusion-xl-base-1.0',
-    inputs
-  );
-
-  // Return the image response
-  return new Response(response, {
-    headers: {
-      'content-type': 'image/png',
-    },
-  });
-} catch (error) {
-  console.error('Error generating image:', error);
-  return c.text('Error generating image');
 }
-});
 
-
-app.onError((err, c) => {
-  return c.text(err);
-});
-
-export default app;
+// Call the main function to start the process
+main();
